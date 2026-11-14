@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Interactive installer for TelegramFileLinkBot.
 #
+# One-line install (the repo is public):
+#
+#   bash <(curl -fsSL https://raw.githubusercontent.com/IzumiRain/TelegramFileLinkBot/main/install.sh)
+#
+# or the classic way:
+#
 #   git clone https://github.com/IzumiRain/TelegramFileLinkBot.git
 #   cd TelegramFileLinkBot && bash install.sh
 #
@@ -18,7 +24,13 @@
 # (BOT_TOKEN, OWNER_IDS, APP_PORT, BASE_URL, GITHUB_TOKEN, ...) and/or
 # pipe answers on stdin. Set INSTALL_NO_RUN=1 to skip the final launch.
 set -u
-cd "$(dirname "$0")"
+# When run from a checkout (bash install.sh) jump to the script's own
+# directory. When streamed (bash <(curl ...)) there is no real directory
+# behind $0 — stay in the current directory instead of failing the cd.
+_SELF_DIR="$(dirname -- "${BASH_SOURCE[0]:-$0}")"
+if [ -d "$_SELF_DIR" ] && [ -f "$_SELF_DIR/install.sh" ]; then
+  cd "$_SELF_DIR"
+fi
 
 REPO_SLUG="${GITHUB_REPO:-IzumiRain/TelegramFileLinkBot}"
 REPO_URL="https://github.com/${REPO_SLUG}.git"
@@ -81,7 +93,7 @@ if [ ! -f bot.py ]; then
   case "$CLONE_FIRST" in
     [nN]*) echo "Aborted — run this installer from inside the project."; exit 1 ;;
   esac
-  ask GH_TOKEN_CLONE "GitHub token (repo is private; empty = try without)" "" secret
+  ask GH_TOKEN_CLONE "GitHub token (optional — the repo is public, just press Enter)" "" secret
   CLONE_URL="$REPO_URL"
   if [ -n "$GH_TOKEN_CLONE" ]; then
     CLONE_URL="https://x-access-token:${GH_TOKEN_CLONE}@github.com/${REPO_SLUG}.git"
@@ -149,7 +161,7 @@ case "$ENABLE_LOCAL" in
     ;;
 esac
 
-ask NEW_GITHUB_TOKEN "GitHub token (optional — lets installer/updater use the private repo)" "$(cur GITHUB_TOKEN)" secret
+ask NEW_GITHUB_TOKEN "GitHub token (optional — only raises GitHub rate limits now the repo is public)" "$(cur GITHUB_TOKEN)" secret
 ask NEW_GUI_PASSWORD "Web admin panel password (optional — empty disables the panel at /admin)" "$(cur WEB_ADMIN_PASSWORD)" secret
 DEF_AUTO="N"
 case "$(cur AUTO_UPDATE)" in 1|true|yes) DEF_AUTO="Y" ;; esac
