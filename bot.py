@@ -13,7 +13,10 @@ then run `python bot.py`. See README.md for the full guide.
 from __future__ import annotations
 
 import asyncio
+import logging
 import signal
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from aiohttp import web
 from telegram.ext import Application
@@ -23,6 +26,39 @@ from app.config import Config
 from app.handlers import register_handlers
 from app.storage import FileStore
 from app.webserver import create_web_app
+
+
+def _setup_logging() -> None:
+    """Console (for the host panel) + rotating logs/bot.log on disk.
+
+    When something fails in production, the log file is where the
+    answer is: every download/upload logs its start, its retries, its
+    result — and full tracebacks on failure."""
+    fmt = logging.Formatter(
+        "%(asctime)s %(levelname)-7s %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    console = logging.StreamHandler()
+    console.setFormatter(fmt)
+    root.addHandler(console)
+    try:
+        log_dir = Path(__file__).resolve().parent / "logs"
+        log_dir.mkdir(exist_ok=True)
+        file_handler = RotatingFileHandler(
+            log_dir / "bot.log",
+            maxBytes=5_000_000,
+            backupCount=3,
+            encoding="utf-8",
+        )
+        file_handler.setFormatter(fmt)
+        root.addHandler(file_handler)
+    except OSError:
+        pass  # read-only filesystem: console logging still works
+    # Third-party loggers are noisy at INFO; keep their warnings/errors.
+    for noisy in ("telegram", "httpx", "aiohttp"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
 async def _cleanup_loop(store: FileStore, ttl_hours: int) -> None:
@@ -129,6 +165,7 @@ async def _run() -> None:
 
 
 def main() -> None:
+    _setup_logging()
     try:
         asyncio.run(_run())
     except KeyboardInterrupt:

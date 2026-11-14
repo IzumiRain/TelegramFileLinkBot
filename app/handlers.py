@@ -11,10 +11,12 @@ Admin menu   : /admin (owners only) — inline-keyboard menu to list, add
 from __future__ import annotations
 
 import asyncio
+import logging
 import mimetypes
 import shutil
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
@@ -30,12 +32,15 @@ from telegram.ext import (
 
 from .config import Config
 from .downloader import DownloadError, download_url
+from .jobs import begin_job, cancel_job, end_job
 from .storage import FileStore
 from .updater import Updater
 from .utils import extract_urls, human_size, parse_user_id, sanitize_filename
 
 # Conversation states for the /admin menu
 ADMIN_MENU, ADMIN_ADD_USER = range(2)
+
+logger = logging.getLogger(__name__)
 
 
 def _help_text(cfg: Config) -> str:
@@ -50,6 +55,7 @@ def _help_text(cfg: Config) -> str:
         "Commands:\n"
         "/start, /help — this message\n"
         "/myfiles — your 10 most recent links\n"
+        "/stop — cancel the download/upload I'm running for you\n"
         "/admin — (owners) manage allowed users\n"
         "/update — (owners) check GitHub for updates\n\n"
         f"Current limits: I can receive files up to {human_size(cfg.max_download_bytes)} "
@@ -71,6 +77,12 @@ def _cfg(context: ContextTypes.DEFAULT_TYPE) -> Config:
 
 def _store(context: ContextTypes.DEFAULT_TYPE) -> FileStore:
     return context.application.bot_data["store"]
+
+
+def _url_label(url: str) -> str:
+    """scheme://host/path for logs — query strings can carry tokens."""
+    parts = urlsplit(url)
+    return f"{parts.scheme}://{parts.netloc}{parts.path}"
 
 
 def _is_owner(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -479,9 +491,26 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         filename = f"{kind}_{attachment.file_unique_id}{ext}"
     filename = sanitize_filename(filename)
 
+    user_id = update.effective_user.id if update.effective_user else 0
+    task = begin_job(context.application.bot_data, user_id)
+    if task is None:
+        await message.reply_text(
+            "⏳ I'm already working on something for you — "
+            "send /stop to cancel it first."
+        )
+        return
     status = await message.reply_text(f"⬇️ Downloading {filename} from Telegram…")
+    dest: Path | None = None
+    started = time.monotonic()
+    logger.info(
+        "file->link start: user=%s file=%s size=%s", user_id, filename, size
+    )
     try:
         tg_file = await context.bot.get_file(attachment.file_id)
+        logger.info(
+            "file->link getFile answered in %.1fs: %s",
+            time.monotonic() - started, tg_file.file_path,
+        )
         token = store.new_token()
         dest = store.path_for(token, filename)
         # Local Bot API on the same filesystem: get_file returns an
@@ -502,10 +531,30 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             getattr(attachment, "mime_type", None),
             update.effective_user.id if update.effective_user else None,
         )
+    except asyncio.CancelledError:
+        if dest is not None:
+            dest.unlink(missing_ok=True)
+        logger.info("file->link cancelled: user=%s file=%s", user_id, filename)
+        try:
+            await status.edit_text(
+                "⏹ Cancelled — I stopped downloading that file."
+            )
+        except Exception:
+            pass
+        return
     except Exception as exc:
+        logger.exception(
+            "file->link failed: user=%s file=%s", user_id, filename
+        )
         await status.edit_text(f"❌ Failed to download that file: {exc}")
         return
+    finally:
+        end_job(context.application.bot_data, user_id, task)
 
+    logger.info(
+        "file->link done: user=%s %s (%d bytes in %.1fs)",
+        user_id, record.filename, record.size, time.monotonic() - started,
+    )
     link = cfg.public_link(record.token, record.filename)
     keyboard = InlineKeyboardMarkup(
         [[InlineKeyboardButton("⬇️ Download", url=link)]]
@@ -536,56 +585,126 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     cfg, store = _cfg(context), _store(context)
     url = urls[0]
+    user_id = update.effective_user.id if update.effective_user else 0
+    task = begin_job(context.application.bot_data, user_id)
+    if task is None:
+        await message.reply_text(
+            "⏳ I'm already working on something for you — "
+            "send /stop to cancel it first."
+        )
+        return
     status = await message.reply_text("⬇️ Downloading from your link…")
     progress = _Progress(status, "⬇️ Downloading…")
     token = store.new_token()
+    record = None
+    logger.info("link->file start: user=%s url=%s", user_id, _url_label(url))
     try:
-        result = await download_url(
-            url,
-            dest_dir=store.files_dir / token,
-            token=token,
-            max_bytes=cfg.max_url_download_bytes,
-            on_progress=progress,
-        )
-    except DownloadError as exc:
-        await status.edit_text(f"❌ {exc}")
-        return
-
-    record = store.register(
-        token, result.filename, result.size, result.content_type,
-        update.effective_user.id if update.effective_user else None,
-    )
-
-    if result.size > cfg.max_upload_bytes:
-        link = cfg.public_link(record.token, record.filename)
-        await status.edit_text(
-            f"⚠️ Downloaded <b>{record.filename}</b> ({human_size(record.size)}), "
-            f"but I can only send files up to {human_size(cfg.max_upload_bytes)} "
-            f"into Telegram.\n\n"
-            f"Here is a download link instead:\n🔗 <code>{link}</code>",
-            parse_mode=ParseMode.HTML,
-            disable_web_page_preview=True,
-        )
-        return
-
-    await status.edit_text(f"⬆️ Uploading {record.filename} to Telegram…")
-    try:
-        with open(result.path, "rb") as fh:
-            await message.reply_document(
-                document=fh,
-                filename=record.filename,
-                caption=(
-                    f"✅ {record.filename} ({human_size(record.size)})\nSource: {url}"
-                )[:1024],
+        try:
+            result = await download_url(
+                url,
+                dest_dir=store.files_dir / token,
+                token=token,
+                max_bytes=cfg.max_url_download_bytes,
+                on_progress=progress,
             )
-        await status.delete()
-    except Exception as exc:
-        link = cfg.public_link(record.token, record.filename)
-        await status.edit_text(
-            f"❌ Upload to Telegram failed: {exc}\n\n"
-            f"The file is stored, grab it here:\n🔗 <code>{link}</code>",
-            parse_mode=ParseMode.HTML,
-            disable_web_page_preview=True,
+        except DownloadError as exc:
+            logger.warning(
+                "link->file download failed: user=%s url=%s: %s",
+                user_id, _url_label(url), exc,
+            )
+            await status.edit_text(f"❌ {exc}")
+            return
+
+        record = store.register(
+            token, result.filename, result.size, result.content_type,
+            update.effective_user.id if update.effective_user else None,
+        )
+
+        if result.size > cfg.max_upload_bytes:
+            link = cfg.public_link(record.token, record.filename)
+            await status.edit_text(
+                f"⚠️ Downloaded <b>{record.filename}</b> ({human_size(record.size)}), "
+                f"but I can only send files up to {human_size(cfg.max_upload_bytes)} "
+                f"into Telegram.\n\n"
+                f"Here is a download link instead:\n🔗 <code>{link}</code>",
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+            )
+            return
+
+        await status.edit_text(f"⬆️ Uploading {record.filename} to Telegram…")
+        logger.info(
+            "link->file upload start: user=%s %s (%d bytes)",
+            user_id, record.filename, record.size,
+        )
+        try:
+            with open(result.path, "rb") as fh:
+                await message.reply_document(
+                    document=fh,
+                    filename=record.filename,
+                    caption=(
+                        f"✅ {record.filename} ({human_size(record.size)})\nSource: {url}"
+                    )[:1024],
+                )
+            await status.delete()
+            logger.info(
+                "link->file done: user=%s %s (%d bytes)",
+                user_id, record.filename, record.size,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.exception(
+                "link->file upload failed: user=%s %s",
+                user_id, record.filename,
+            )
+            link = cfg.public_link(record.token, record.filename)
+            await status.edit_text(
+                f"❌ Upload to Telegram failed: {exc}\n\n"
+                f"The file is stored, grab it here:\n🔗 <code>{link}</code>",
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+            )
+    except asyncio.CancelledError:
+        logger.info(
+            "link->file cancelled: user=%s url=%s", user_id, _url_label(url)
+        )
+        if record is None:
+            shutil.rmtree(store.files_dir / token, ignore_errors=True)
+            text = "⏹ Cancelled — I stopped that download."
+            kwargs: dict = {}
+        else:
+            link = cfg.public_link(record.token, record.filename)
+            text = (
+                "⏹ Upload cancelled — but the file is fully downloaded "
+                f"and stored.\n\n🔗 <code>{link}</code>"
+            )
+            kwargs = {
+                "parse_mode": ParseMode.HTML,
+                "disable_web_page_preview": True,
+            }
+        try:
+            await status.edit_text(text, **kwargs)
+        except Exception:
+            pass
+        return
+    finally:
+        end_job(context.application.bot_data, user_id, task)
+
+
+async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Cancel whatever the bot is currently doing for this user."""
+    user = update.effective_user
+    if user is None:
+        return
+    if cancel_job(context.application.bot_data, user.id):
+        logger.info("/stop: user=%s cancelled their active job", user.id)
+        await update.effective_message.reply_text(
+            "⏹ Stopping your current download/upload…"
+        )
+    else:
+        await update.effective_message.reply_text(
+            "Nothing is running for you right now — nothing to stop."
         )
 
 
@@ -614,6 +733,7 @@ def register_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_start))
     app.add_handler(CommandHandler("myfiles", cmd_myfiles))
+    app.add_handler(CommandHandler("stop", cmd_stop))
     app.add_handler(CommandHandler("adduser", cmd_adduser))
     app.add_handler(CommandHandler("removeuser", cmd_removeuser))
     app.add_handler(CommandHandler("users", cmd_users))

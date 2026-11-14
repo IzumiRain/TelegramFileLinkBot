@@ -22,6 +22,10 @@ Plus:
 
 - `/start`, `/help` — how it works
 - `/myfiles` — your 10 most recent files and their links
+- `/stop` — cancel the download/upload the bot is running for you
+- Link downloads **resume automatically** when the connection drops
+  (HTTP Range), and everything is logged to the console and
+  `logs/bot.log`
 - `/admin` — owners-only menu to add/remove allowed users right inside
   Telegram (see [Managing allowed users](#managing-allowed-users-admin-menu))
 - Live progress while it downloads from a link
