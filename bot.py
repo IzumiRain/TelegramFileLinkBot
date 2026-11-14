@@ -36,8 +36,25 @@ async def _cleanup_loop(store: FileStore, ttl_hours: int) -> None:
 async def _run() -> None:
     config = Config.from_env()
     store = FileStore(config.storage_dir)
+    # ALLOWED_USER_IDS from .env is only a seed: the live allow-list lives
+    # in SQLite and is managed from the in-bot /admin menu (owners only).
+    store.seed_allowed_users(config.allowed_user_ids)
+    if config.owner_ids:
+        print(f"[bot] owners (admin menu): {sorted(config.owner_ids)}")
+    else:
+        print("[bot] OWNER_IDS is not set — the /admin menu is disabled.")
+    print(f"[bot] allowed users: {sorted(store.allowed_user_ids())}")
 
-    application = Application.builder().token(config.bot_token).build()
+    builder = Application.builder().token(config.bot_token)
+    if config.use_local_bot_api:
+        builder = builder.base_url(f"{config.bot_api_url}/bot").base_file_url(
+            f"{config.bot_api_url}/file/bot"
+        )
+        if config.bot_api_local_mode:
+            builder = builder.local_mode(True)
+        print(f"[bot] using local Bot API server at {config.bot_api_url} "
+              f"(limits up to 2 GB, local_mode={config.bot_api_local_mode})")
+    application = builder.build()
     application.bot_data["config"] = config
     application.bot_data["store"] = store
     register_handlers(application)

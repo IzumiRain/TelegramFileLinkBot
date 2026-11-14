@@ -47,7 +47,56 @@ class FileStore:
             )
             """
         )
+        self.db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS allowed_users (
+                user_id    INTEGER PRIMARY KEY,
+                added_by   INTEGER,
+                created_at REAL NOT NULL
+            )
+            """
+        )
         self.db.commit()
+
+    # -- allow-list (managed from the /admin menu) ------------------------
+    def seed_allowed_users(self, user_ids, added_by: int | None = None) -> None:
+        """Insert ids (e.g. from ALLOWED_USER_IDS env) that are not in the
+        table yet. Existing rows are never removed by seeding."""
+        for uid in user_ids:
+            self.db.execute(
+                "INSERT OR IGNORE INTO allowed_users (user_id, added_by, created_at) "
+                "VALUES (?, ?, ?)",
+                (int(uid), added_by, time.time()),
+            )
+        self.db.commit()
+
+    def allowed_user_ids(self) -> set[int]:
+        rows = self.db.execute("SELECT user_id FROM allowed_users").fetchall()
+        return {int(r[0]) for r in rows}
+
+    def is_allowed_user(self, user_id: int) -> bool:
+        row = self.db.execute(
+            "SELECT 1 FROM allowed_users WHERE user_id = ?", (user_id,)
+        ).fetchone()
+        return row is not None
+
+    def add_allowed_user(self, user_id: int, added_by: int | None = None) -> bool:
+        """Add a user. Returns True if newly added, False if already there."""
+        cur = self.db.execute(
+            "INSERT OR IGNORE INTO allowed_users (user_id, added_by, created_at) "
+            "VALUES (?, ?, ?)",
+            (int(user_id), added_by, time.time()),
+        )
+        self.db.commit()
+        return cur.rowcount > 0
+
+    def remove_allowed_user(self, user_id: int) -> bool:
+        """Remove a user. Returns True if the user was present."""
+        cur = self.db.execute(
+            "DELETE FROM allowed_users WHERE user_id = ?", (int(user_id),)
+        )
+        self.db.commit()
+        return cur.rowcount > 0
 
     # -- writing ---------------------------------------------------------
     def new_token(self) -> str:

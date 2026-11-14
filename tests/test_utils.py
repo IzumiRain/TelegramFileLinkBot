@@ -12,6 +12,7 @@ from app.utils import (  # noqa: E402
     extract_urls,
     filename_from_content_disposition,
     human_size,
+    parse_user_id,
     resolve_download_filename,
     sanitize_filename,
 )
@@ -76,6 +77,21 @@ class TestExtractUrls(unittest.TestCase):
     def test_none_when_no_url(self):
         self.assertEqual(extract_urls("no links here"), [])
         self.assertEqual(extract_urls(""), [])
+
+
+class TestParseUserId(unittest.TestCase):
+    def test_bare_id(self):
+        self.assertEqual(parse_user_id("123456789"), 123456789)
+
+    def test_id_with_whitespace_and_label(self):
+        self.assertEqual(parse_user_id("  id: 987654321 \n"), 987654321)
+
+    def test_rejects_usernames_and_junk(self):
+        self.assertIsNone(parse_user_id("@someuser"))
+        self.assertIsNone(parse_user_id("hello"))
+        self.assertIsNone(parse_user_id(""))
+        self.assertIsNone(parse_user_id(None))
+        self.assertIsNone(parse_user_id("42"))  # too short to be an ID
 
 
 class TestHumanSize(unittest.TestCase):

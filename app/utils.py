@@ -81,6 +81,26 @@ def resolve_download_filename(
     return f"download{ext}" if ext else "download.bin"
 
 
+_USER_ID_RE = re.compile(r"^\d{5,20}$")
+
+
+def parse_user_id(text: str | None) -> int | None:
+    """Parse a Telegram user ID out of free text (the /admin menu input).
+
+    Accepts a bare numeric ID, optionally surrounded by whitespace or a
+    sentence like "id: 123456789". Returns None when no plausible ID is
+    present. Usernames can't be resolved to IDs by a bot, so they are
+    rejected on purpose.
+    """
+    if not text:
+        return None
+    candidate = text.strip()
+    if _USER_ID_RE.match(candidate):
+        return int(candidate)
+    match = re.search(r"\b(\d{5,20})\b", candidate)
+    return int(match.group(1)) if match else None
+
+
 def extract_urls(text: str | None) -> list[str]:
     """All http(s) URLs in a text, trailing sentence punctuation trimmed."""
     if not text:
