@@ -17,6 +17,7 @@ import signal
 
 from aiohttp import web
 from telegram.ext import Application
+from telegram.request import HTTPXRequest
 
 from app.config import Config
 from app.handlers import register_handlers
@@ -45,7 +46,29 @@ async def _run() -> None:
         print("[bot] OWNER_IDS is not set — the /admin menu is disabled.")
     print(f"[bot] allowed users: {sorted(store.allowed_user_ids())}")
 
-    builder = Application.builder().token(config.bot_token)
+    # Generous request timeouts: PTB's defaults (5 s read/write) kill
+    # large-file transfers. A local Bot API server in --local mode only
+    # answers getFile after it has pulled the WHOLE file from Telegram's
+    # servers (700 MB–2 GB can take minutes), and uploading a big file
+    # back has the same problem — so the bot must be willing to wait.
+    request = HTTPXRequest(
+        connect_timeout=30.0,
+        read_timeout=1800.0,
+        write_timeout=1800.0,
+        pool_timeout=30.0,
+    )
+    updates_request = HTTPXRequest(
+        connect_timeout=30.0,
+        read_timeout=60.0,
+        write_timeout=60.0,
+        pool_timeout=30.0,
+    )
+    builder = (
+        Application.builder()
+        .token(config.bot_token)
+        .request(request)
+        .get_updates_request(updates_request)
+    )
     if config.use_local_bot_api:
         builder = builder.base_url(f"{config.bot_api_url}/bot").base_file_url(
             f"{config.bot_api_url}/file/bot"
