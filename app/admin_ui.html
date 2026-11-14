@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TelegramFileLinkBot — Admin</title>
+<style>
+  :root{
+    --bg:#0a0f0d; --panel:#101613; --panel2:#151c18; --line:#223028;
+    --green:#34d399; --green-dim:#10b981; --text:#d7e0da; --muted:#8fa398;
+    --red:#f87171; --amber:#fbbf24; --mono:ui-monospace,'Cascadia Mono',Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font-family:system-ui,-apple-system,'Segoe UI',sans-serif}
+  header{display:flex;align-items:center;gap:12px;padding:14px 20px;
+         border-bottom:1px solid var(--line);background:var(--panel)}
+  header h1{font-size:17px;margin:0;font-family:var(--mono);color:var(--green)}
+  header .ver{color:var(--muted);font-family:var(--mono);font-size:12px}
+  header .spacer{flex:1}
+  .pill{font-family:var(--mono);font-size:12px;padding:3px 10px;border-radius:99px;
+        border:1px solid var(--line);color:var(--muted)}
+  .pill.ok{color:var(--green);border-color:var(--green-dim)}
+  main{max-width:1060px;margin:0 auto;padding:18px;display:grid;gap:16px;
+       grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+  .card.wide{grid-column:1/-1}
+  .card h2{margin:0 0 12px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;
+           color:var(--green);font-family:var(--mono)}
+  .kv{display:flex;justify-content:space-between;gap:10px;padding:4px 0;
+      border-bottom:1px dashed #1b251f;font-size:14px}
+  .kv:last-child{border-bottom:none}
+  .kv b{font-family:var(--mono);font-weight:600;text-align:right;word-break:break-all}
+  .kv span{color:var(--muted)}
+  input,select{background:var(--panel2);border:1px solid var(--line);color:var(--text);
+        border-radius:6px;padding:8px 10px;font-size:14px;width:100%}
+  input:focus{outline:1px solid var(--green-dim)}
+  label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+  button{background:var(--green-dim);color:#04150d;border:none;border-radius:6px;
+         padding:8px 14px;font-weight:600;cursor:pointer;font-size:14px}
+  button:hover{background:var(--green)}
+  button.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+  button.danger{background:transparent;color:var(--red);border:1px solid #4a2323}
+  button.small{padding:4px 10px;font-size:12px}
+  .row{display:flex;gap:8px;align-items:center}
+  .row>*{flex:0 0 auto}.row .grow{flex:1}
+  ul.plain{list-style:none;margin:0;padding:0}
+  ul.plain li{display:flex;justify-content:space-between;align-items:center;
+              padding:6px 0;border-bottom:1px dashed #1b251f;font-family:var(--mono);font-size:14px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:6px 8px;border-bottom:1px solid #1b251f;text-align:left;vertical-align:top}
+  th{color:var(--muted);font-family:var(--mono);font-weight:500;font-size:12px}
+  td{font-family:var(--mono);word-break:break-all}
+  a{color:var(--green)}
+  pre{background:#070a08;border:1px solid var(--line);border-radius:6px;padding:10px;
+      font-size:12px;white-space:pre-wrap;max-height:220px;overflow:auto;color:var(--muted)}
+  .msg{font-size:13px;min-height:18px;margin-top:8px}
+  .msg.err{color:var(--red)} .msg.good{color:var(--green)} .msg.warn{color:var(--amber)}
+  #login{position:fixed;inset:0;background:rgba(4,8,6,.92);display:none;
+         align-items:center;justify-content:center;z-index:10}
+  #login .box{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+              padding:26px;width:min(340px,90vw)}
+  #login h2{margin:0 0 14px;color:var(--green);font-family:var(--mono);font-size:16px}
+  .muted{color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div id="login">
+  <div class="box">
+    <h2>🔒 Admin login</h2>
+    <form id="loginForm">
+      <input type="password" id="loginPassword" placeholder="Panel password" autocomplete="current-password">
+      <div class="msg err" id="loginMsg"></div>
+      <button type="submit" style="width:100%;margin-top:10px">Log in</button>
+    </form>
+  </div>
+</div>
+
+<header>
+  <h1>📁 File ⇄ Link Bot</h1>
+  <span class="ver" id="hdrVersion"></span>
+  <div class="spacer"></div>
+  <span class="pill" id="hdrUptime">uptime —</span>
+  <span class="pill ok" id="hdrStatus">● running</span>
+  <button class="ghost small" id="logoutBtn">Log out</button>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Overview</h2>
+    <div id="overview"></div>
+  </section>
+
+  <section class="card">
+    <h2>Update</h2>
+    <div class="kv"><span>Current commit</span><b id="updCurrent">—</b></div>
+    <div class="kv"><span>Latest on GitHub</span><b id="updRemote">—</b></div>
+    <div class="kv"><span>Status</span><b id="updStatus">not checked yet</b></div>
+    <div class="row" style="margin-top:12px">
+      <button id="updCheckBtn" class="grow">Check for updates</button>
+      <button id="updApplyBtn" class="grow" disabled>Install update</button>
+    </div>
+    <div class="msg" id="updMsg"></div>
+    <pre id="updLog" style="display:none"></pre>
+  </section>
+
+  <section class="card">
+    <h2>Allowed users</h2>
+    <p class="muted" style="margin-top:0">Owners (from <code>OWNER_IDS</code>) are always allowed and manage this list — same list as the Telegram <code>/admin</code> menu.</p>
+    <div class="kv"><span>Owners</span><b id="ownersList">—</b></div>
+    <ul class="plain" id="usersList" style="margin-top:8px"></ul>
+    <form id="addUserForm" class="row" style="margin-top:12px">
+      <input class="grow" id="addUserId" inputmode="numeric" placeholder="Telegram user ID, e.g. 123456789">
+      <button type="submit">Add</button>
+    </form>
+    <div class="msg" id="usersMsg"></div>
+  </section>
+
+  <section class="card">
+    <h2>Settings</h2>
+    <p class="muted" style="margin-top:0">Saved to <code>.env</code>. Changes apply after a restart.</p>
+    <form id="settingsForm">
+      <label>Base URL (download links start with this)</label>
+      <input id="set_BASE_URL" placeholder="http://node:port or https://domain">
+      <label>App port</label>
+      <input id="set_APP_PORT" inputmode="numeric" placeholder="8080">
+      <label>Owner Telegram IDs (comma-separated)</label>
+      <input id="set_OWNER_IDS" placeholder="123456789">
+      <label>Local Bot API URL (empty = public Telegram API)</label>
+      <input id="set_BOT_API_URL" placeholder="http://127.0.0.1:8081">
+      <label>Max URL download (MB)</label>
+      <input id="set_MAX_URL_DOWNLOAD_MB" inputmode="numeric">
+      <label>File TTL hours (0 = keep forever)</label>
+      <input id="set_FILE_TTL_HOURS" inputmode="numeric">
+      <label>GitHub token (for private-repo updates — leave empty to keep)</label>
+      <input id="set_GITHUB_TOKEN" type="password" placeholder="">
+      <label>Bot token (leave empty to keep)</label>
+      <input id="set_BOT_TOKEN" type="password" placeholder="">
+      <label style="display:flex;gap:8px;align-items:center;margin-top:14px">
+        <input type="checkbox" id="set_AUTO_UPDATE" style="width:auto"> Auto-update on start
+      </label>
+      <button type="submit" style="margin-top:14px;width:100%">Save settings</button>
+      <div class="msg" id="settingsMsg"></div>
+    </form>
+  </section>
+
+  <section class="card wide">
+    <h2>Stored files</h2>
+    <table>
+      <thead><tr><th>File</th><th>Size</th><th>Owner</th><th>Stored</th><th></th></tr></thead>
+      <tbody id="filesBody"></tbody>
+    </table>
+    <div class="msg" id="filesMsg"></div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+async function api(path, opts={}){
+  const res = await fetch(path, {headers:{'Content-Type':'application/json'}, ...opts});
+  if(res.status === 401){ $('login').style.display='flex'; throw new Error('unauthenticated'); }
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));
+  return data;
+}
+const post = (path, body) => api(path, {method:'POST', body: JSON.stringify(body||{})});
+function human(n){ if(n==null) return '—'; const u=['B','KB','MB','GB','TB']; let i=0; while(n>=1024&&i<4){n/=1024;i++;} return n.toFixed(i?2:0)+' '+u[i]; }
+function ago(ts){ const s = Math.max(0, Date.now()/1000 - ts); if(s<3600) return Math.floor(s/60)+'m ago'; if(s<86400) return Math.floor(s/3600)+'h ago'; return Math.floor(s/86400)+'d ago'; }
+
+async function loadStatus(){
+  const s = await api('/admin/api/status');
+  $('hdrVersion').textContent = 'v'+s.version;
+  $('hdrUptime').textContent = 'uptime ' + Math.floor(s.uptime_s/3600)+'h '+Math.floor(s.uptime_s%3600/60)+'m';
+  $('overview').innerHTML = [
+    ['Public base URL', s.base_url],
+    ['Listening port', s.port],
+    ['Local Bot API', s.local_bot_api ? 'on (2 GB limits)' : 'off (20/50 MB limits)'],
+    ['Receive / send limit', human(s.max_download_bytes)+' / '+human(s.max_upload_bytes)],
+    ['Stored files', s.files_count],
+    ['Allowed users', s.allowed_count],
+    ['Commit', s.commit || '—'],
+  ].map(([k,v])=>`<div class="kv"><span>${k}</span><b>${v}</b></div>`).join('');
+}
+async function loadUsers(){
+  const u = await api('/admin/api/users');
+  $('ownersList').textContent = u.owners.join(', ') || '—';
+  $('usersList').innerHTML = u.allowed.length
+    ? u.allowed.map(id=>`<li><span>${id}</span><button class="danger small" data-rm="${id}">Remove</button></li>`).join('')
+    : '<li class="muted">— none yet —</li>';
+  document.querySelectorAll('[data-rm]').forEach(b=>b.onclick = async ()=>{
+    await api('/admin/api/users/'+b.dataset.rm, {method:'DELETE'});
+    loadUsers(); loadStatus();
+  });
+}
+async function loadFiles(){
+  const f = await api('/admin/api/files');
+  $('filesBody').innerHTML = f.files.length ? f.files.map(x=>`
+    <tr><td><a href="${x.link}" target="_blank" rel="noopener">${x.filename}</a></td>
+        <td>${human(x.size)}</td><td>${x.owner_id ?? '—'}</td><td>${ago(x.created_at)}</td>
+        <td><button class="danger small" data-del="${x.token}">Delete</button></td></tr>`).join('')
+    : '<tr><td colspan="5" class="muted">No files stored yet.</td></tr>';
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick = async ()=>{
+    if(!confirm('Delete this file?')) return;
+    await api('/admin/api/files/'+b.dataset.del, {method:'DELETE'});
+    loadFiles(); loadStatus();
+  });
+}
+async function loadSettings(){
+  const s = await api('/admin/api/settings');
+  for(const k of ['BASE_URL','APP_PORT','OWNER_IDS','BOT_API_URL','MAX_URL_DOWNLOAD_MB','FILE_TTL_HOURS'])
+    if(s.values[k] !== undefined) $('set_'+k).value = s.values[k];
+  $('set_AUTO_UPDATE').checked = ['1','true','yes'].includes((s.values.AUTO_UPDATE||'').toLowerCase());
+  $('set_GITHUB_TOKEN').placeholder = s.secrets_set.GITHUB_TOKEN ? '•••••• (set — leave empty to keep)' : 'not set';
+  $('set_BOT_TOKEN').placeholder = s.secrets_set.BOT_TOKEN ? '•••••• (set — leave empty to keep)' : 'not set';
+}
+async function refresh(){ try{ await loadStatus(); await loadUsers(); await loadFiles(); await loadSettings(); }catch(e){} }
+
+$('loginForm').onsubmit = async e=>{
+  e.preventDefault();
+  try{
+    await post('/admin/api/login', {password: $('loginPassword').value});
+    $('login').style.display='none'; $('loginMsg').textContent='';
+    refresh();
+  }catch(err){ $('loginMsg').textContent = 'Wrong password.'; }
+};
+$('logoutBtn').onclick = async ()=>{ await post('/admin/api/logout'); location.reload(); };
+$('addUserForm').onsubmit = async e=>{
+  e.preventDefault();
+  const v = $('addUserId').value.trim();
+  try{
+    const r = await post('/admin/api/users', {user_id: v});
+    $('usersMsg').textContent = r.added ? `✅ ${v} added.` : `ℹ️ ${v} was already allowed.`;
+    $('usersMsg').className = 'msg good'; $('addUserId').value='';
+    loadUsers(); loadStatus();
+  }catch(err){ $('usersMsg').textContent = err.message; $('usersMsg').className='msg err'; }
+};
+$('settingsForm').onsubmit = async e=>{
+  e.preventDefault();
+  const updates = {};
+  for(const k of ['BASE_URL','APP_PORT','OWNER_IDS','BOT_API_URL','MAX_URL_DOWNLOAD_MB','FILE_TTL_HOURS'])
+    updates[k] = $('set_'+k).value.trim();
+  updates.AUTO_UPDATE = $('set_AUTO_UPDATE').checked ? '1' : '0';
+  if($('set_GITHUB_TOKEN').value) updates.GITHUB_TOKEN = $('set_GITHUB_TOKEN').value;
+  if($('set_BOT_TOKEN').value) updates.BOT_TOKEN = $('set_BOT_TOKEN').value;
+  try{
+    await post('/admin/api/settings', {updates});
+    $('settingsMsg').textContent = '✅ Saved to .env — restart the server to apply.';
+    $('settingsMsg').className = 'msg good';
+    $('set_GITHUB_TOKEN').value=''; $('set_BOT_TOKEN').value='';
+  }catch(err){ $('settingsMsg').textContent = err.message; $('settingsMsg').className='msg err'; }
+};
+$('updCheckBtn').onclick = async ()=>{
+  $('updMsg').textContent = 'Checking GitHub…'; $('updMsg').className='msg';
+  try{
+    const s = await post('/admin/api/update/check');
+    $('updCurrent').textContent = s.current_short || '—';
+    $('updRemote').textContent = s.remote_short || '—';
+    if(s.error){ $('updStatus').textContent = 'error'; $('updMsg').textContent = s.error; $('updMsg').className='msg err'; return; }
+    $('updStatus').textContent = s.up_to_date ? 'up to date ✅' : `${s.behind} new commit(s) available`;
+    $('updApplyBtn').disabled = !!s.up_to_date;
+    $('updMsg').textContent = ''; 
+  }catch(err){ $('updMsg').textContent = err.message; $('updMsg').className='msg err'; }
+};
+$('updApplyBtn').onclick = async ()=>{
+  $('updApplyBtn').disabled = true;
+  $('updMsg').textContent = 'Updating…'; $('updMsg').className='msg';
+  try{
+    const r = await post('/admin/api/update/apply');
+    const log = $('updLog'); log.style.display='block';
+    log.textContent = (r.log||[]).join('\n') + (r.error ? '\nERROR: '+r.error : '');
+    $('updMsg').textContent = r.ok ? '✅ Updated — restart the server to run the new code.' : 'Update failed, see log.';
+    $('updMsg').className = 'msg ' + (r.ok ? 'warn' : 'err');
+    $('updCurrent').textContent = (r.current||'').slice(0,7) || '—';
+  }catch(err){ $('updMsg').textContent = err.message; $('updMsg').className='msg err'; }
+};
+refresh();
+</script>
+</body>
+</html>

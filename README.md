@@ -70,6 +70,27 @@ and set `BOT_API_URL` — see
 
 ## Setup
 
+### The easy way — the installer
+
+```bash
+git clone https://github.com/IzumiRain/TelegramFileLinkBot.git
+cd TelegramFileLinkBot
+bash install.sh
+```
+
+The installer asks you everything it needs — **bot token**, **owner
+Telegram ID**, **app port**, **base URL**, whether to enable a **local
+Bot API server** (and its api id/hash), an optional **GitHub token**
+(so the updater can pull this private repo) and an optional **web panel
+password** — writes `.env`, installs dependencies into `.venv`, and
+offers to start the bot. From then on, starting is just:
+
+```bash
+bash start.sh
+```
+
+Prefer doing it by hand? Then:
+
 ### 1. Create the bot
 
 Talk to [@BotFather](https://t.me/BotFather), send `/newbot`, and copy the
@@ -98,7 +119,10 @@ nano .env
 | `OWNER_IDS` | Your own Telegram ID(s) — owners can use the bot and open the `/admin` menu. **Set this** (get your ID from [@userinfobot](https://t.me/userinfobot)) |
 | `ALLOWED_USER_IDS` | Comma-separated Telegram user IDs allowed to use the bot — a first-boot seed only; afterwards manage the list from the `/admin` menu |
 | `BOT_API_URL` | Address of a local `telegram-bot-api` server (e.g. `http://127.0.0.1:8081`) to raise the Telegram limits to 2 GB; empty = public Bot API |
-| `PORT` | Web server port (default `8080`; on Pterodactyl the panel's `SERVER_PORT` is used automatically) |
+| `APP_PORT` | The port the app listens on — fully custom (e.g. `2020`, `62001`). Priority: `APP_PORT` > `PORT` > Pterodactyl's `SERVER_PORT` > `8080` |
+| `GITHUB_TOKEN` | Token the installer/updater use to clone & pull this **private** repo without prompting |
+| `AUTO_UPDATE` | `1` = check GitHub and apply updates on every start (via `start.sh`) |
+| `WEB_ADMIN_PASSWORD` | Password for the web admin panel at `/admin`; empty = panel disabled |
 | `STORAGE_DIR` | Where files are kept (default `./storage`) |
 | `MAX_URL_DOWNLOAD_MB` | Refuse URL downloads larger than this (default `2048`) |
 | `FILE_TTL_HOURS` | Auto-delete stored files after N hours; `0` = keep forever (default) |
@@ -140,6 +164,37 @@ WantedBy=multi-user.target
 ```bash
 sudo systemctl enable --now tg-file-link
 ```
+
+## Updating
+
+The bot can update itself from GitHub (fast-forward only; local changes
+to tracked files are never overwritten):
+
+- **CLI:** `bash update.sh` checks, `bash update.sh apply` installs.
+- **Telegram:** owners send `/update` to check, `/update apply` to install.
+- **Web panel:** the *Update* card does both, with a log.
+- **Automatically:** set `AUTO_UPDATE=1` and every `bash start.sh` run
+  updates first.
+
+Because the repo is private, put a `GITHUB_TOKEN` in `.env` (the
+installer asks for one) — fetches then authenticate with it; the token
+is never written into the git remote. After an update, restart the
+server so the new code runs.
+
+## Web admin panel (GUI)
+
+Set `WEB_ADMIN_PASSWORD` in `.env` (the installer asks) and open
+`<BASE_URL>/admin`. After logging in you get:
+
+- **Overview** — version, commit, limits, file/user counts, uptime
+- **Update** — check GitHub and install updates from the browser
+- **Allowed users** — the same list the Telegram `/admin` menu manages
+- **Settings** — edit `.env` (base URL, app port, owners, Bot API,
+  tokens…) from the browser; applied on restart
+- **Stored files** — browse, open and delete stored files
+
+The panel is a single self-contained page (no external assets), served
+by the bot's own web server. With no password set it stays disabled.
 
 ## Managing allowed users (admin menu)
 
@@ -198,7 +253,9 @@ Command** — `start.sh` in this repo is built for exactly that:
 
 1. Create a server with the **AIO** egg and clone this repo into it
    (panel file manager / SFTP, or `git clone` from the console).
-2. Create `.env` from `.env.example` and fill in at least `BOT_TOKEN`,
+2. Run `bash install.sh` once in the console — it asks for everything
+   and writes `.env` for you. Or create `.env` from `.env.example` by
+   hand and fill in at least `BOT_TOKEN`,
    `OWNER_IDS` (your Telegram ID) and `BASE_URL`:
    `BASE_URL=http://<node-address>:<your allocated port>` — the port is
    the one the panel assigned to the server; the bot listens on it
@@ -251,16 +308,21 @@ such as Cloudflare Tunnel or Tailscale Funnel also works).
 
 ```
 bot.py               entry point — runs bot + web server together
+install.sh           interactive installer (asks everything, writes .env)
 start.sh             Pterodactyl/DanBot (AIO egg) startup script
+update.sh            self-update from GitHub (check / apply)
+VERSION              current version
 app/
   config.py          environment / .env configuration + Bot API limits
-  handlers.py        Telegram handlers (file->link, link->file, /admin menu)
+  handlers.py        Telegram handlers (file->link, link->file, /admin, /update)
   downloader.py      streaming URL downloader with progress + size cap
   storage.py         disk layout + SQLite index, allow-list, expiry sweep
-  webserver.py       aiohttp app serving /d/<token>/<filename>
+  webserver.py       aiohttp app: /d/<token> downloads + /admin panel
+  admin_ui.html      the web admin panel (single-page GUI)
+  updater.py         git-based self-updater (token-authenticated fetch)
+  envfile.py         .env reader/writer that preserves comments
   utils.py           filename sanitising, URL extraction, size formatting
-tests/
-  test_utils.py      unit tests for the helpers (python -m unittest discover -s tests)
+tests/               unit tests (python -m unittest discover -s tests)
 ```
 
 ## Development

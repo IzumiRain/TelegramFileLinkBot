@@ -59,13 +59,17 @@ async def _run() -> None:
     application.bot_data["store"] = store
     register_handlers(application)
 
-    # Web server (download links) on the same event loop.
-    runner = web.AppRunner(create_web_app(store))
+    # Web server (download links + admin panel) on the same event loop.
+    runner = web.AppRunner(create_web_app(store, config))
     await runner.setup()
     site = web.TCPSite(runner, config.host, config.port)
     await site.start()
     print(f"[web] download server listening on {config.host}:{config.port}")
     print(f"[web] public base URL for links: {config.base_url}")
+    if config.web_admin_password:
+        print(f"[web] admin panel enabled: {config.base_url}/admin")
+    else:
+        print("[web] admin panel disabled (set WEB_ADMIN_PASSWORD to enable)")
 
     await application.initialize()
     await application.start()

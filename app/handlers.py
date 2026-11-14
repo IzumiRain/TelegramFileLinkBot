@@ -31,6 +31,7 @@ from telegram.ext import (
 from .config import Config
 from .downloader import DownloadError, download_url
 from .storage import FileStore
+from .updater import Updater
 from .utils import extract_urls, human_size, parse_user_id, sanitize_filename
 
 # Conversation states for the /admin menu
@@ -49,7 +50,8 @@ def _help_text(cfg: Config) -> str:
         "Commands:\n"
         "/start, /help — this message\n"
         "/myfiles — your 10 most recent links\n"
-        "/admin — (owners) manage allowed users\n\n"
+        "/admin — (owners) manage allowed users\n"
+        "/update — (owners) check GitHub for updates\n\n"
         f"Current limits: I can receive files up to {human_size(cfg.max_download_bytes)} "
         f"and send files up to {human_size(cfg.max_upload_bytes)}"
         + (
@@ -391,6 +393,53 @@ async def cmd_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 # --------------------------------------------------------------------------
+# Self-update from GitHub (owners only)
+# --------------------------------------------------------------------------
+def _updater(context: ContextTypes.DEFAULT_TYPE) -> Updater:
+    cfg = _cfg(context)
+    root = Path(__file__).resolve().parent.parent
+    return Updater(root, cfg.github_token, cfg.github_repo)
+
+
+async def cmd_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/update — check GitHub; /update apply — pull and install it."""
+    if not _is_owner(update, context):
+        return await _deny(update)
+    message = update.effective_message
+    updater = _updater(context)
+    args = [a.lower() for a in (context.args or [])]
+    if args and args[0] in ("apply", "now", "install"):
+        status = await message.reply_text("⬇️ Updating from GitHub…")
+        report = await asyncio.to_thread(updater.apply)
+        lines = report.get("log", [])
+        if report.get("ok") and report.get("updated"):
+            lines.append("♻️ Restart the server to run the new code.")
+            await status.edit_text("✅ Update installed.\n" + "\n".join(lines))
+        elif report.get("ok"):
+            await status.edit_text("✅ " + "\n".join(lines))
+        else:
+            await status.edit_text(f"❌ Update failed: {report.get('error')}")
+        return
+    status = await message.reply_text("🔍 Checking GitHub for updates…")
+    info = await asyncio.to_thread(updater.status, True)
+    if not info.get("ok"):
+        await status.edit_text(f"❌ {info.get('error')}")
+    elif info.get("up_to_date"):
+        await status.edit_text(
+            f"✅ Up to date — running commit <code>{info['current_short']}</code>.",
+            parse_mode=ParseMode.HTML,
+        )
+    else:
+        await status.edit_text(
+            f"🆕 Update available: <code>{info['current_short']}</code> → "
+            f"<code>{info['remote_short']}</code> "
+            f"({info['behind']} new commit(s)).\n"
+            "Send /update apply to install it.",
+            parse_mode=ParseMode.HTML,
+        )
+
+
+# --------------------------------------------------------------------------
 # File -> Link
 # --------------------------------------------------------------------------
 async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -568,6 +617,7 @@ def register_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("adduser", cmd_adduser))
     app.add_handler(CommandHandler("removeuser", cmd_removeuser))
     app.add_handler(CommandHandler("users", cmd_users))
+    app.add_handler(CommandHandler("update", cmd_update))
     app.add_handler(MessageHandler(filters.ATTACHMENT, handle_file))
     app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text)

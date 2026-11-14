@@ -141,6 +141,16 @@ class FileStore:
             raise ValueError("stored path escapes the storage directory")
         return path
 
+    def count_files(self) -> int:
+        row = self.db.execute("SELECT COUNT(*) FROM files").fetchone()
+        return int(row[0])
+
+    def list_recent(self, limit: int = 100) -> list[StoredFile]:
+        rows = self.db.execute(
+            "SELECT * FROM files ORDER BY created_at DESC LIMIT ?", (limit,)
+        ).fetchall()
+        return [StoredFile(**dict(r)) for r in rows]
+
     def list_for_owner(self, owner_id: int, limit: int = 10) -> list[StoredFile]:
         rows = self.db.execute(
             "SELECT * FROM files WHERE owner_id = ? "

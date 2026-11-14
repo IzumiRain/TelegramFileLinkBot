@@ -30,7 +30,9 @@ else
   echo "[start] WARNING: no .env file — copy .env.example to .env and fill it in."
 fi
 
-# Optional: update the code on boot (set GIT_PULL=1 in .env to enable)
+# Optional: plain git pull on boot (set GIT_PULL=1 in .env to enable).
+# The smarter updater (AUTO_UPDATE=1) runs further below, once the
+# virtualenv exists, so its pip reinstalls land in the right place.
 if [ -d .git ] && [ "${GIT_PULL:-0}" = "1" ]; then
   git pull --ff-only || echo "[start] git pull failed — continuing with local code"
 fi
@@ -53,6 +55,13 @@ if [ "$PYTHON" = ".venv/bin/python" ]; then
     .venv/bin/python -m pip install -q -r requirements.txt \
       && echo "$REQ_HASH" > .venv/.requirements-hash
   fi
+fi
+
+# --- Self-update on boot (optional) ------------------------------------------
+if [ "${AUTO_UPDATE:-0}" = "1" ] && [ -d .git ]; then
+  echo "[start] AUTO_UPDATE=1 — checking GitHub for updates…"
+  $PYTHON -m app.updater apply \
+    || echo "[start] update failed — continuing with local code"
 fi
 
 # --- Local telegram-bot-api server (optional, raises limits to 2 GB) -------

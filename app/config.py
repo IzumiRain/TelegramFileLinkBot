@@ -15,6 +15,19 @@ BOT_API_MAX_UPLOAD = 50 * 1024 * 1024  # sendDocument: files up to 50 MB
 LOCAL_BOT_API_MAX = 2000 * 1024 * 1024  # local server: up to 2000 MB both ways
 
 
+def read_version() -> str:
+    """App version from the VERSION file at the project root."""
+    try:
+        return (
+            (Path(__file__).resolve().parent.parent / "VERSION")
+            .read_text(encoding="utf-8")
+            .strip()
+            or "dev"
+        )
+    except OSError:
+        return "dev"
+
+
 def _parse_id_list(raw: str, var_name: str) -> set[int]:
     ids: set[int] = set()
     for part in raw.split(","):
@@ -48,6 +61,14 @@ class Config:
     bot_api_local_mode: bool = False
     max_url_download_mb: int = 2048
     file_ttl_hours: int = 0  # 0 = keep files forever
+    # GitHub access for the updater. The repo is private, so a token is
+    # needed for the installer/updater to clone/pull without interaction.
+    github_token: str = ""
+    github_repo: str = "IzumiRain/TelegramFileLinkBot"
+    auto_update: bool = False  # check & apply updates on start (start.sh)
+    # Web admin panel (/admin). Empty password = panel disabled.
+    web_admin_password: str = ""
+    env_file: Path = Path(".env")
 
     @property
     def max_url_download_bytes(self) -> int:
@@ -80,8 +101,15 @@ class Config:
                 "BOT_TOKEN is missing. Copy .env.example to .env and put the "
                 "token you got from @BotFather there."
             )
-        # Pterodactyl (DanBot) injects the allocated port as SERVER_PORT.
-        port = int(os.getenv("PORT") or os.getenv("SERVER_PORT") or "8080")
+        # Listening port, most specific first: APP_PORT is the explicit
+        # setting (installer / .env / panel), then PORT, then the port
+        # Pterodactyl (DanBot) injects as SERVER_PORT.
+        port = int(
+            os.getenv("APP_PORT")
+            or os.getenv("PORT")
+            or os.getenv("SERVER_PORT")
+            or "8080"
+        )
         base_url = os.getenv("BASE_URL", "").strip().rstrip("/")
         if not base_url:
             base_url = f"http://127.0.0.1:{port}"
@@ -108,4 +136,12 @@ class Config:
             in ("1", "true", "yes"),
             max_url_download_mb=int(os.getenv("MAX_URL_DOWNLOAD_MB", "2048")),
             file_ttl_hours=int(os.getenv("FILE_TTL_HOURS", "0")),
+            github_token=os.getenv("GITHUB_TOKEN", "").strip(),
+            github_repo=os.getenv(
+                "GITHUB_REPO", "IzumiRain/TelegramFileLinkBot"
+            ).strip(),
+            auto_update=os.getenv("AUTO_UPDATE", "").strip()
+            in ("1", "true", "yes"),
+            web_admin_password=os.getenv("WEB_ADMIN_PASSWORD", ""),
+            env_file=Path(os.getenv("ENV_FILE", ".env")),
         )
