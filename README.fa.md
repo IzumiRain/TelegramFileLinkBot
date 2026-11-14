@@ -84,6 +84,14 @@ bash start.sh
 
 ## نصب با installer (راه راحت)
 
+نصب تک‌خطی:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/IzumiRain/TelegramFileLinkBot/main/install.sh)
+```
+
+یا دستی:
+
 ```bash
 git clone https://github.com/IzumiRain/TelegramFileLinkBot.git
 cd TelegramFileLinkBot
@@ -116,6 +124,25 @@ API** و api id/hash ـش، **توکن گیت‌هاب** (چون رپو private 
 کاربرهای مجاز (همون لیست منوی `/admin` تلگرام)، ویرایش ستینگ‌های
 `.env` (پورت، Base URL، اونرها، توکن‌ها…) و لیست فایل‌های ذخیره‌شده
 با امکان حذف. پسورد نذاری پنل کلاً غیرفعاله.
+
+## هاست‌های بدون شل (مثل Botkeep)
+
+بعضی هاست‌ها اصلاً ترمینال و شل نمی‌دن؛ فقط پنلن: رپو یا زیپ وصل
+می‌کنی، یه Start Command می‌دی و کانفیگ رو توی فرم Environment
+Variables وارد می‌کنی. این ربات کامل با همون مدل کار می‌کنه، چون همه‌ی
+تنظیماتش رو از env می‌خونه و `.env` فقط یه راحتیه برای وقتی شل داری:
+
+- سورس: همین رپوی گیت‌هاب (پابلیکه) یا زیپ پروژه
+- Start Command: ‏`bash start.sh`
+- توی Environment پنل: `BOT_TOKEN` (به‌صورت secret)، `OWNER_IDS` و
+  بعد از اینکه هاست دامنه داد، `BASE_URL` رو بذار روی همون دامنه
+- `APP_PORT` و `PORT` رو دستی ست **نکن** — هاست خودش پورت رو با
+  `SERVER_PORT` پاس می‌ده و ربات روش گوش می‌ده
+- محدودیت‌ها: لوکال Bot API اونجا نمی‌شه ران کرد (سقف‌ها همون ۲۰/۵۰
+  مگ می‌مونن) و آپدیت از تب GitHub خود پنل انجام می‌شه، نه از داخل ربات
+
+راهنمای کامل و قدم‌به‌قدمش (با جزئیات Botkeep و چک‌لیست) اینجاست:
+[docs/hosting-without-shell.md](docs/hosting-without-shell.md)
 
 ## راه‌اندازی سریع (دستی)
 

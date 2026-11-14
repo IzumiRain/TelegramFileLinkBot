@@ -70,6 +70,19 @@ and set `BOT_API_URL` — see
 
 ## Setup
 
+### One-line install
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/IzumiRain/TelegramFileLinkBot/main/install.sh)
+```
+
+(no `curl`? `bash <(wget -qO- https://raw.githubusercontent.com/IzumiRain/TelegramFileLinkBot/main/install.sh)`.)
+
+That downloads and runs the interactive installer described below —
+it clones the repo for you. No shell at all (panel-only hosts like
+Botkeep)? Skip to
+[Hosting without a shell](docs/hosting-without-shell.md).
+
 ### The easy way — the installer
 
 ```bash
@@ -245,6 +258,15 @@ One bot token can be logged in on only one Bot API server at a time —
 when you first switch to a local server, the bot is logged out from the
 public API automatically (and back when you remove `BOT_API_URL`).
 
+## Hosting without a shell (Botkeep & friends)
+
+Panel-only application hosts — no terminal, just a repo/ZIP, a start
+command and environment-variable forms — work fine too: the bot reads
+all of its configuration from the environment. Full walkthrough,
+including Botkeep specifics, disk limits and what doesn't work there
+(no local Bot API server, updates via the panel's GitHub tab):
+**[docs/hosting-without-shell.md](docs/hosting-without-shell.md)**.
+
 ## Deploy on DanBot Hosting (Pterodactyl, AIO egg)
 
 [DanBot Hosting](https://danbot.host) runs on Pterodactyl with an
@@ -323,6 +345,8 @@ app/
   envfile.py         .env reader/writer that preserves comments
   utils.py           filename sanitising, URL extraction, size formatting
 tests/               unit tests (python -m unittest discover -s tests)
+docs/
+  hosting-without-shell.md   Botkeep & panel-only application hosts guide
 ```
 
 ## Development
