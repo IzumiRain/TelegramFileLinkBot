@@ -1,0 +1,11 @@
+services:
+  bot:
+    build: .
+    container_name: telegram-file-link-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
+    volumes:
+      - ./storage:/app/storage
