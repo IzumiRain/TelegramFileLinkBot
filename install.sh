@@ -227,7 +227,7 @@ info "Web panel:     ${NEW_BASE_URL}/admin $([ -n "$NEW_GUI_PASSWORD" ] && echo 
 info "GitHub token:  $([ -n "$NEW_GITHUB_TOKEN" ] && echo 'set (updater can use the private repo)' || echo 'not set')"
 info ""
 info "From now on, starting is just:  bash start.sh"
-info "(On DanBot/Pterodactyl set the Startup Command to exactly that.)"
+info "(On panel hosts (Pterodactyl-style), set the Startup Command to exactly that.)"
 
 if [ "${INSTALL_NO_RUN:-0}" = "1" ]; then
   exit 0

@@ -242,7 +242,7 @@ server and point the bot at it — both Telegram-side limits become
 
 Two ways to run it:
 
-**A. Same machine/container as the bot (e.g. inside the DanBot server).**
+**A. Same machine/container as the bot.**
 Put the `telegram-bot-api` binary at `bin/telegram-bot-api`, set
 `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` in `.env`, and `start.sh` will
 launch it automatically (port `BOT_API_PORT`, default 8081) and set
@@ -270,34 +270,6 @@ all of its configuration from the environment. Full walkthrough,
 including Botkeep specifics, disk limits and what doesn't work there
 (no local Bot API server, updates via the panel's GitHub tab):
 **[docs/hosting-without-shell.md](docs/hosting-without-shell.md)**.
-
-## Deploy on DanBot Hosting (Pterodactyl, AIO egg)
-
-[DanBot Hosting](https://danbot.host) runs on Pterodactyl with an
-all-in-one (AIO) egg whose only setting is a free-form **Startup
-Command** — `start.sh` in this repo is built for exactly that:
-
-1. Create a server with the **AIO** egg and clone this repo into it
-   (panel file manager / SFTP, or `git clone` from the console).
-2. Run `bash install.sh` once in the console — it asks for everything
-   and writes `.env` for you. Or create `.env` from `.env.example` by
-   hand and fill in at least `BOT_TOKEN`,
-   `OWNER_IDS` (your Telegram ID) and `BASE_URL`:
-   `BASE_URL=http://<node-address>:<your allocated port>` — the port is
-   the one the panel assigned to the server; the bot listens on it
-   automatically (Pterodactyl passes it as `SERVER_PORT`).
-3. In the panel's **Startup** tab set the Startup Command to:
-
-   ```
-   bash start.sh
-   ```
-
-4. Start the server. `start.sh` creates the virtualenv, installs
-   dependencies, optionally starts the local Bot API server (option A
-   above), prints the egg's *SERVER MARKED AS RUNNING* banner, and runs
-   the bot.
-5. Set `GIT_PULL=1` in `.env` if you want each restart to `git pull`
-   the latest code first.
 
 ## Putting links on a domain (HTTPS)
 
@@ -335,7 +307,7 @@ such as Cloudflare Tunnel or Tailscale Funnel also works).
 ```
 bot.py               entry point — runs bot + web server together
 install.sh           interactive installer (asks everything, writes .env)
-start.sh             Pterodactyl/DanBot (AIO egg) startup script
+start.sh             Panel startup script (Pterodactyl-compatible)
 update.sh            self-update from GitHub (check / apply)
 VERSION              current version
 app/

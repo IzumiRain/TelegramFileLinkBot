@@ -98,7 +98,7 @@ From Botkeep's own documentation
   system-level setup, which these hosts don't allow (“do not assume
   root access, public ports or arbitrary system packages”). Telegram's
   public limits therefore apply: **20 MB** files in, **50 MB** out.
-  For 2 GB limits use the DanBot/VPS routes in the README instead.
+  For 2 GB limits, run the bot somewhere with a shell (e.g. a VPS).
 - **No self-update from inside the bot.** `/update`, `AUTO_UPDATE` and
   the web panel's Update button expect a writable git checkout and a
   shell. On panel hosts, update through the host's GitHub tab as above.

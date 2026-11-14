@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Startup script for Pterodactyl panels (DanBot Hosting "AIO" egg).
+# Startup script for Pterodactyl-style panel hosts (all-in-one eggs).
 #
 # In the panel, set the server's Startup Command to:
 #
@@ -99,8 +99,8 @@ fi
 # (The bot-api child started above is stopped together with the container
 # when the panel stops the server.)
 
-# The DanBot AIO egg marks the server as "running" when this exact banner
-# appears in the console.
+# All-in-one panel eggs mark the server as "running" when this exact
+# banner appears in the console.
 echo "======================================== SERVER MARKED AS RUNNING ========================================"
 
 # --- Run the bot -------------------------------------------------------------

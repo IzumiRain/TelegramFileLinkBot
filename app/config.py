@@ -103,7 +103,7 @@ class Config:
             )
         # Listening port, most specific first: APP_PORT is the explicit
         # setting (installer / .env / panel), then PORT, then the port
-        # Pterodactyl (DanBot) injects as SERVER_PORT.
+        # Pterodactyl-style panels inject as SERVER_PORT.
         port = int(
             os.getenv("APP_PORT")
             or os.getenv("PORT")
